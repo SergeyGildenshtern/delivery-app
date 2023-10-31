@@ -11,17 +11,13 @@ module Purchases
 
     def call
       yield make_payment
-      ActiveRecord::Base.transaction do
-        grant_access
-        request_for_delivery
-        create_delivery
-      rescue StandardError => e
-        payment.refund
-        raise e
-      end
+      grant_access
 
+      yield request_for_delivery
+      yield create_delivery
       notify_user
     rescue StandardError => e
+      payment.refund
       Failure(e.message)
     end
 
@@ -44,11 +40,12 @@ module Purchases
 
     def request_for_delivery
       response = Sdek.setup_delivery(address: user.address, person: user, weight: product.weight)
-      raise ActiveRecord::Rollback, 'Delivery is not available' unless response.success?
+      response.success? ? Success(:ok) : Failure(:delivery_unavailable)
     end
 
     def create_delivery
-      @delivery = Delivery.create!(user: user, product: product)
+      @delivery = Delivery.create(user: user, product: product)
+      @delivery.persisted? ? Success(:ok) : Failure(:failed_create_delivery)
     end
 
     def notify_user
