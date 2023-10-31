@@ -1,7 +1,7 @@
 class PrepareDelivery
-  class ValidationError < StandardError; end
+  ValidationError = Class.new StandardError
 
-  RESULT = Struct.new(:truck, :weight, :order_number, :address, :status) do
+  RESULT = Struct.new(:truck, :weight, :order_number, :destination_address, :status) do
     def success
       self.status = :ok
       self.to_h
@@ -13,15 +13,15 @@ class PrepareDelivery
     end
   end
 
-  def initialize(order, address, date)
+  def initialize(order, destination_address, delivery_date)
     @order = order
-    @address = address
-    @date = date
+    @destination_address = destination_address
+    @delivery_date = delivery_date
   end
 
   def perform
-    validate_date!
-    validate_address!
+    validate_delivery_date!
+    validate_destination_address!
     find_truck!
 
     result.success
@@ -31,14 +31,19 @@ class PrepareDelivery
 
   private
 
-  attr_reader :order, :address, :date
+  attr_reader :order, :destination_address, :delivery_date
 
-  def validate_date!
-    raise ValidationError, 'Дата доставки уже прошла' if date < Time.current
+  def validate_delivery_date!
+    raise ValidationError, 'Дата доставки уже прошла' if delivery_date < Time.current
   end
 
-  def validate_address!
-    raise ValidationError, 'Нет адреса' if address.city.empty? || address.street.empty? || address.house.empty?
+  def validate_destination_address!
+    missing_parts = []
+    missing_parts << 'город' if destination_address.city.empty?
+    missing_parts << 'улица' if destination_address.street.empty?
+    missing_parts << 'дом' if destination_address.house.empty?
+
+    raise ValidationError, "Отсутствует(ют) #{missing_parts.join(', ')} в адресе" unless missing_parts.empty?
   end
 
   def find_truck!
@@ -46,7 +51,7 @@ class PrepareDelivery
   end
 
   def truck
-    @truck ||= Trucks.where('capacity >= ?', products_weight).order(:capacity).first
+    @truck ||= Truck.where('capacity >= ?', products_weight).order(:capacity).first
   end
 
   def products_weight
@@ -54,7 +59,7 @@ class PrepareDelivery
   end
 
   def result
-    @result ||= RESULT.new(truck, products_weight, order.id, address, :processing)
+    @result ||= RESULT.new(truck, products_weight, order.id, destination_address, :processing)
   end
 end
 
