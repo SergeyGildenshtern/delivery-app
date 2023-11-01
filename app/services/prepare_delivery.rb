@@ -1,18 +1,6 @@
 class PrepareDelivery
   ValidationError = Class.new StandardError
 
-  RESULT = Struct.new(:truck, :weight, :order_number, :destination_address, :status) do
-    def success
-      self.status = :ok
-      self.to_h
-    end
-
-    def failure
-      self.status = :error
-      self.to_h
-    end
-  end
-
   def initialize(order, destination_address, delivery_date)
     @order = order
     @destination_address = destination_address
@@ -59,8 +47,43 @@ class PrepareDelivery
   end
 
   def result
-    @result ||= RESULT.new(truck, products_weight, order.id, destination_address, :processing)
+    @result ||= DeliveryResult.new(truck, products_weight, order.id, destination_address, :processing)
   end
+end
+
+class DeliveryResult
+  def initialize(truck, weight, order_number, destination_address, status)
+    @truck = truck
+    @weight = weight
+    @order_number = order_number
+    @destination_address = destination_address
+    @status = status
+  end
+
+  def success
+    self.status = :ok
+    to_h
+  end
+
+  def failure
+    self.status = :error
+    to_h
+  end
+
+  def to_h
+    {
+      truck: truck,
+      weight: weight,
+      order_number: order_number,
+      destination_address: destination_address,
+      status: status
+    }
+  end
+
+  private
+
+  attr_accessor :status
+  attr_reader :truck, :weight, :order_number, :destination_address
 end
 
 class Order
